@@ -16,6 +16,11 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Cloudflare Wrangler local state
+.wrangler/
+relay/.wrangler/
+relay/node_modules/
+
 # VS Code
 .vscode/
 

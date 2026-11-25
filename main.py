@@ -22,7 +22,7 @@ def load_config(path: str = "config.yaml") -> dict:
 
 
 async def post_init_autostart(application: Application) -> None:
-    """Start the Playwright ad-farming loop automatically on launch."""
+    """Start the Playwright ad-farming loop automatically on launch (direct mode)."""
     from sf_bot import run_sf_bot
 
     state = handlers.state
@@ -89,7 +89,19 @@ def main() -> None:
     config = load_config()
     state = BotState()
 
-    # Inject shared objects into handlers module
+    # Relay mode (default — shared @shakes_fortune_bot via Cloudflare Worker)
+    relay_cfg = config.get("relay") or {}
+    if relay_cfg.get("client_secret"):
+        from relay_client import run_relay_bot
+
+        logger.info("Starting in Relay Mode (@shakes_fortune_bot)...")
+        try:
+            asyncio.run(run_relay_bot(state, config, autostart=args.autostart))
+        except KeyboardInterrupt:
+            pass
+        return
+
+    # Direct mode fallback (only if user manually runs their own BotFather token)
     handlers.state = state
     handlers.config = config
 
@@ -107,7 +119,7 @@ def main() -> None:
     app.add_handler(CommandHandler("stop", handlers.cmd_stop))
     app.add_handler(CommandHandler("status", handlers.cmd_status))
 
-    logger.info("Bot started. Waiting for commands...")
+    logger.info("Bot started (direct mode). Waiting for commands...")
     app.run_polling(allowed_updates=["message"])
 
 

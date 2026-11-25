@@ -19,6 +19,8 @@ CONFIG_PATH = "config.yaml"
 EXAMPLE_PATH = "config.example.yaml"
 STATE_PATH = "state.json"
 DEFAULT_CDP_URL = "http://127.0.0.1:9222"
+DEFAULT_RELAY_URL = "https://shakes-fortune-relay.abunader-sf.workers.dev"
+BOT_USERNAME = "shakes_fortune_bot"
 
 
 def _default_config() -> dict:
@@ -29,6 +31,11 @@ def _default_config() -> dict:
         "telegram_token": "",
         "owner_chat_id": 0,
         "headless": False,
+        "relay": {
+            "url": DEFAULT_RELAY_URL,
+            "client_secret": "",
+            "telegram_user": "",
+        },
         "browser": {"use_existing_browser": True, "cdp_url": DEFAULT_CDP_URL},
         "active_profile": "",
         "profiles": [],
@@ -234,6 +241,35 @@ def delete_profile(config: dict, index: int) -> None:
 def has_valid_token_format(config: dict) -> bool:
     token = str(config.get("telegram_token", "")).strip()
     return bool(token) and ":" in token and "PON_TU_TOKEN" not in token
+
+
+def get_relay_url(config: dict) -> str:
+    relay = config.get("relay") or {}
+    return str(relay.get("url") or DEFAULT_RELAY_URL).strip().rstrip("/")
+
+
+def is_relay_linked(config: dict) -> bool:
+    relay = config.get("relay") or {}
+    return bool(str(relay.get("client_secret", "")).strip())
+
+
+def relay_create_pair(relay_url: str = DEFAULT_RELAY_URL) -> dict:
+    """Request a 6-digit pairing code and client secret from the shared relay."""
+    url = f"{relay_url.rstrip('/')}/api/pair/create"
+    req = urllib.request.Request(url, data=b"{}", headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+        if not data.get("ok"):
+            raise RuntimeError("Relay rechazó la solicitud de vinculación.")
+        return data
+
+
+def relay_check_pair_status(relay_url: str, secret: str) -> dict:
+    """Poll whether the user completed /vincular in @shakes_fortune_bot."""
+    url = f"{relay_url.rstrip('/')}/api/pair/status"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {secret}"})
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 
 def validate_telegram_token(token: str) -> Optional[dict]:

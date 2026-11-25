@@ -1,21 +1,22 @@
 # =============================================
 #  Shakes & Fortune Bot - Plantilla de configuracion
-#  Normalmente NO necesitas editar esto a mano:
-#  al ejecutar ShakesFortune.bat por primera vez,
-#  el asistente crea config.yaml automaticamente.
+#  NO necesitas editar este archivo a mano:
+#  todo se configura desde la interfaz ShakesFortune.bat
 # =============================================
 
-# --- Telegram (tu propio bot creado con @BotFather) ---
-telegram_token: "PON_TU_TOKEN_AQUI"
+# --- Conexion al bot oficial @shakes_fortune_bot ---
+relay:
+  url: https://shakes-fortune-relay.abunader-sf.workers.dev
+  client_secret: ""
+  telegram_user: ""
 
-# Se guarda automaticamente la primera vez que mandas /start a tu bot
-owner_chat_id: 0
-
-# --- Personaje (solo etiqueta para reportes de Telegram) ---
-character_name: "NombreDeTuPersonaje"
-server_id: "EU30"
+# --- Personaje activo (gestionado desde la interfaz) ---
+character_name: ""
+server_id: ""
 server_url: https://sfgame.net
 headless: false
+active_profile: ""
+profiles: []
 
 # --- Navegador (reutiliza Chrome abierto en puerto 9222) ---
 browser:

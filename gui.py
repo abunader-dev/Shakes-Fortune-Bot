@@ -19,6 +19,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 from typing import Optional
+import webbrowser
 
 import profile_manager as pm
 
@@ -423,7 +424,7 @@ class ShakesFortuneApp(tk.Tk):
 
         self.btn_tg = RPGButton(
             util_row,
-            text="🤖 Configurar Telegram",
+            text="🍀 Vincular Telegram",
             command=self._open_telegram_dialog,
             bg="#153247",
             hover_bg="#1f4966",
@@ -616,12 +617,12 @@ class ShakesFortuneApp(tk.Tk):
         stats = pm.read_bot_stats()
         self.lbl_stat_ads.configure(text=str(stats.get("ads_watched", 0)), fg=TEXT_LIGHT)
 
-        if self.telegram_username:
-            self.lbl_stat_tg.configure(text=f"@{self.telegram_username}", fg="#7ee2a8")
-        elif pm.has_valid_token_format(self.config_data):
-            self.lbl_stat_tg.configure(text="Configurado", fg=CYAN)
+        if pm.is_relay_linked(self.config_data):
+            tg_user = (self.config_data.get("relay") or {}).get("telegram_user", "")
+            label = f"@{tg_user}" if tg_user else f"@{pm.BOT_USERNAME}"
+            self.lbl_stat_tg.configure(text=f"✓ {label}", fg="#7ee2a8")
         else:
-            self.lbl_stat_tg.configure(text="Sin configurar", fg=AMBER)
+            self.lbl_stat_tg.configure(text="Sin vincular", fg=AMBER)
 
     # ------------------------------------------------------------------
     # Add / Calibrate / Delete Character Dialogs
@@ -826,109 +827,186 @@ class ShakesFortuneApp(tk.Tk):
             self._append_log(f"Perfil eliminado: {prof['name']} ({prof['server']})")
 
     # ------------------------------------------------------------------
-    # Telegram Setup Modal
+    # Telegram Relay Pairing Modal (@shakes_fortune_bot)
     # ------------------------------------------------------------------
     def _open_telegram_dialog(self) -> None:
         dlg = tk.Toplevel(self)
-        dlg.title("Configurar tu Bot de Telegram")
-        dlg.geometry("480x340")
+        dlg.title("Vincular con @shakes_fortune_bot")
+        dlg.geometry("490x390")
         dlg.configure(bg=BG_PANEL)
         dlg.transient(self)
         dlg.grab_set()
         dlg.resizable(False, False)
 
-        tk.Label(dlg, text="🤖  TU BOT DE TELEGRAM", font=("Georgia", 14, "bold"), fg=GOLD, bg=BG_PANEL).pack(
-            anchor="w", padx=20, pady=(16, 4)
-        )
-        steps_txt = (
-            "1. Abrí Telegram y buscá @BotFather\n"
-            "2. Mandale /newbot, elegí nombre (ej: Shakes & Fortune) y usuario terminado en 'bot'\n"
-            "3. Copiá el TOKEN que te da y pegalo acá abajo\n"
-            "4. Al mandar /start por primera vez, tu cuenta queda vinculada automáticamente"
-        )
+        relay_url = pm.get_relay_url(self.config_data)
+        state_box = {"closed": False, "code": "", "secret": ""}
+
         tk.Label(
             dlg,
-            text=steps_txt,
+            text="🍀  VINCULAR CON TELEGRAM",
+            font=("Georgia", 14, "bold"),
+            fg=GOLD,
+            bg=BG_PANEL,
+        ).pack(anchor="w", padx=22, pady=(16, 4))
+
+        tk.Label(
+            dlg,
+            text=f"Conectá tu PC con @{pm.BOT_USERNAME} en 10 segundos (sin BotFather ni tokens).",
+            font=FONT_SMALL,
+            fg=TEXT_MUTED,
+            bg=BG_PANEL,
+        ).pack(anchor="w", padx=22, pady=(0, 12))
+
+        code_card = tk.Frame(
+            dlg,
+            bg=BG_PANEL_INNER,
+            highlightthickness=1,
+            highlightbackground=GOLD_BORDER,
+            padx=16,
+            pady=14,
+        )
+        code_card.pack(fill="x", padx=22, pady=(0, 12))
+
+        tk.Label(
+            code_card,
+            text="TU CÓDIGO DE VINCULACIÓN",
+            font=("Segoe UI", 8, "bold"),
+            fg=TEXT_DIM,
+            bg=BG_PANEL_INNER,
+        ).pack()
+
+        lbl_code = tk.Label(
+            code_card,
+            text="Generando...",
+            font=("Consolas", 26, "bold"),
+            fg=GOLD_BRIGHT,
+            bg=BG_PANEL_INNER,
+            pady=6,
+        )
+        lbl_code.pack()
+
+        lbl_hint = tk.Label(
+            code_card,
+            text=f"Buscá @{pm.BOT_USERNAME} en Telegram y enviá /vincular CODIGO",
             font=FONT_SMALL,
             fg=TEXT_MUTED,
             bg=BG_PANEL_INNER,
-            justify="left",
-            padx=12,
-            pady=10,
-            highlightthickness=1,
-            highlightbackground=BORDER_SUBTLE,
-        ).pack(fill="x", padx=20, pady=(6, 12))
-
-        tk.Label(dlg, text="Token de Telegram (@BotFather)", font=FONT_SMALL, fg=TEXT_LIGHT, bg=BG_PANEL).pack(
-            anchor="w", padx=20
         )
-        ent_token = tk.Entry(
+        lbl_hint.pack()
+
+        lbl_status = tk.Label(
             dlg,
-            bg=BG_INPUT,
-            fg=TEXT_LIGHT,
-            insertbackground=GOLD,
-            font=FONT_MONO,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground=BORDER_SUBTLE,
-            highlightcolor=GOLD,
+            text="⏳ Conectando con el servidor...",
+            font=FONT_SMALL,
+            fg=CYAN,
+            bg=BG_PANEL,
         )
-        ent_token.pack(fill="x", padx=20, ipady=7, pady=(4, 6))
+        lbl_status.pack(pady=(0, 10))
 
-        existing = str(self.config_data.get("telegram_token", "")).strip()
-        if existing and "PON_TU_TOKEN" not in existing:
-            ent_token.insert(0, existing)
+        def _open_deeplink():
+            code = state_box["code"]
+            if code:
+                webbrowser.open(f"https://t.me/{pm.BOT_USERNAME}?start={code}")
 
-        lbl_status = tk.Label(dlg, text="", font=FONT_SMALL, fg=CYAN, bg=BG_PANEL)
-        lbl_status.pack(anchor="w", padx=20, pady=(2, 10))
+        def _copy_cmd():
+            code = state_box["code"]
+            if code:
+                self.clipboard_clear()
+                self.clipboard_append(f"/vincular {code}")
+                lbl_status.configure(text=f"📋 Copiado: /vincular {code} — pegalo en @{pm.BOT_USERNAME}", fg=GOLD_BRIGHT)
 
-        def _validate_and_save():
-            token = ent_token.get().strip()
-            lbl_status.configure(text="Verificando token con Telegram...", fg=CYAN)
-            dlg.update_idletasks()
-
-            def worker():
-                info = pm.validate_telegram_token(token)
-                self.after(0, lambda: _finish(token, info))
-
-            threading.Thread(target=worker, daemon=True).start()
-
-        def _finish(token: str, info: Optional[dict]):
-            if not info:
-                lbl_status.configure(text="❌ Token inválido o sin conexión. Revisalo e intentá de nuevo.", fg=RED_HOVER)
-                return
-
-            if token != str(self.config_data.get("telegram_token", "")).strip():
-                self.config_data["owner_chat_id"] = 0
-            self.config_data["telegram_token"] = token
-            pm.save_config(self.config_data)
-            self.telegram_username = info.get("username")
-            self._refresh_summary()
-            self._append_log(f"[OK] Bot de Telegram vinculado: @{self.telegram_username}")
-            dlg.destroy()
-
-        RPGButton(
+        btn_open = RPGButton(
             dlg,
-            text="✓ Validar y guardar token",
-            command=_validate_and_save,
+            text=f"🍀  Abrir @{pm.BOT_USERNAME} en Telegram",
+            command=_open_deeplink,
             bg=GREEN,
             hover_bg=GREEN_HOVER,
             border="#52d68a",
-            pady=9,
-        ).pack(fill="x", padx=20)
+            font=FONT_BTN,
+            pady=10,
+        )
+        btn_open.pack(fill="x", padx=22, pady=(0, 8))
+        btn_open.set_disabled(True)
+
+        btn_copy = RPGButton(
+            dlg,
+            text="📋 Copiar comando /vincular",
+            command=_copy_cmd,
+            bg="#153247",
+            hover_bg="#1f4966",
+            pady=8,
+        )
+        btn_copy.pack(fill="x", padx=22)
+        btn_copy.set_disabled(True)
+
+        def _on_close_dlg():
+            state_box["closed"] = True
+            dlg.destroy()
+
+        dlg.protocol("WM_DELETE_WINDOW", _on_close_dlg)
+
+        def _request_code():
+            try:
+                data = pm.relay_create_pair(relay_url)
+                code = str(data["code"])
+                secret = str(data["secret"])
+                state_box["code"] = code
+                state_box["secret"] = secret
+                self.after(0, lambda: _on_code_ready(code))
+            except Exception as exc:
+                self.after(0, lambda: _on_code_error(str(exc)))
+
+        def _on_code_ready(code: str):
+            if state_box["closed"]:
+                return
+            pretty = f"{code[:3]} {code[3:]}"
+            lbl_code.configure(text=pretty)
+            lbl_hint.configure(text=f"En @{pm.BOT_USERNAME} mandá:  /vincular {code}")
+            lbl_status.configure(text="⏳ Esperando que confirmes en Telegram...", fg=CYAN)
+            btn_open.set_disabled(False)
+            btn_copy.set_disabled(False)
+            _schedule_poll()
+
+        def _on_code_error(err: str):
+            if state_box["closed"]:
+                return
+            lbl_code.configure(text="ERROR", fg=RED_HOVER)
+            lbl_status.configure(text=f"❌ No se pudo conectar al relay: {err}", fg=RED_HOVER)
+
+        def _schedule_poll():
+            if state_box["closed"]:
+                return
+
+            def worker():
+                try:
+                    res = pm.relay_check_pair_status(relay_url, state_box["secret"])
+                    if res.get("linked"):
+                        self.after(0, lambda: _on_linked(res))
+                        return
+                except Exception:
+                    pass
+                if not state_box["closed"]:
+                    self.after(2000, _schedule_poll)
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        def _on_linked(res: dict):
+            if state_box["closed"]:
+                return
+            relay_cfg = self.config_data.setdefault("relay", {})
+            relay_cfg["url"] = relay_url
+            relay_cfg["client_secret"] = state_box["secret"]
+            relay_cfg["telegram_user"] = res.get("username") or res.get("first_name") or ""
+            pm.save_config(self.config_data)
+            self._refresh_summary()
+            self._append_log(f"[OK] PC vinculada con @{pm.BOT_USERNAME} (usuario: {relay_cfg['telegram_user'] or 'Telegram'}).")
+            lbl_status.configure(text="✅ ¡PC vinculada con éxito!", fg="#7ee2a8")
+            self.after(1000, _on_close_dlg)
+
+        threading.Thread(target=_request_code, daemon=True).start()
 
     def _check_telegram_async(self) -> None:
-        if not pm.has_valid_token_format(self.config_data):
-            return
-        token = str(self.config_data.get("telegram_token", "")).strip()
-
-        def worker():
-            info = pm.validate_telegram_token(token)
-            if info:
-                self.telegram_username = info.get("username")
-                self.after(0, self._refresh_summary)
-
-        threading.Thread(target=worker, daemon=True).start()
+        pass
 
     # ------------------------------------------------------------------
     # Chrome & Bot Process Control
@@ -954,10 +1032,10 @@ class ShakesFortuneApp(tk.Tk):
             self._start_bot()
 
     def _start_bot(self) -> None:
-        if not pm.has_valid_token_format(self.config_data):
+        if not pm.is_relay_linked(self.config_data):
             messagebox.showinfo(
-                "Falta configurar Telegram",
-                "Primero vinculá tu propio bot de Telegram (tarda 30 segundos con @BotFather).",
+                "Falta vincular Telegram",
+                f"Primero vinculá tu PC con @{pm.BOT_USERNAME} (tarda 10 segundos con el código de 6 dígitos).",
             )
             self._open_telegram_dialog()
             return
