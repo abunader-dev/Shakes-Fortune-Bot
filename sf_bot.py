@@ -39,6 +39,12 @@ DEFAULT_REL_COORDS: dict[str, tuple[float, float]] = {
 # Relative interior region of the Character Selection modal inside the 16:9 game area.
 CHAR_SELECT_REL_BOX: tuple[float, float, float, float] = (0.2321, 0.2116, 0.7381, 0.6667)
 
+# Relative regions inside the 16:9 game area that uniquely identify Dr. Abawuwu's Wheel screen:
+# 1) The large warm wooden wheel body on the right-center
+# 2) Dr. Abawuwu's bright white chef hat on the mid-left
+WHEEL_WOOD_REL_BOX: tuple[float, float, float, float] = (0.46, 0.20, 0.80, 0.80)
+WHEEL_HAT_REL_BOX: tuple[float, float, float, float] = (0.26, 0.37, 0.36, 0.56)
+
 
 def compute_game_rect(
     container_x: float,
@@ -210,17 +216,107 @@ async def select_character(
         logger.info("Character session confirmed after clicking %s.", target_desc)
 
 
+async def is_wheel_visible(page: Page) -> bool:
+    """Detect whether Dr. Abawuwu's Wheel of Fortune screen is currently open.
+
+    Combines two resolution-independent regions inside the 16:9 game viewport:
+      - Large warm wooden-brown/gold wheel area (>28% coverage)
+      - Dr. Abawuwu's white chef hat area (>10% bright neutral white)
+    """
+    try:
+        screenshot = await page.screenshot()
+        image = Image.open(BytesIO(screenshot)).convert("RGB")
+        img_w, img_h = image.size
+        gx, gy, gw, gh = compute_game_rect(0.0, 0.0, float(img_w), float(img_h))
+
+        def _crop_rel(box: tuple[float, float, float, float]):
+            rx1, ry1, rx2, ry2 = box
+            return image.crop(
+                (
+                    int(gx + rx1 * gw),
+                    int(gy + ry1 * gh),
+                    int(gx + rx2 * gw),
+                    int(gy + ry2 * gh),
+                )
+            )
+
+        wood_pixels = list(_crop_rel(WHEEL_WOOD_REL_BOX).getdata())
+        if not wood_pixels:
+            return False
+        wood_ratio = sum(
+            1
+            for r, g, b in wood_pixels
+            if r > 95 and g > 55 and b < 95 and r > g * 1.05
+        ) / len(wood_pixels)
+
+        hat_pixels = list(_crop_rel(WHEEL_HAT_REL_BOX).getdata())
+        if not hat_pixels:
+            return False
+        hat_ratio = sum(
+            1
+            for r, g, b in hat_pixels
+            if r > 175 and g > 175 and b > 175 and abs(r - b) < 35
+        ) / len(hat_pixels)
+
+        logger.debug("Wheel check: wood=%.2f hat=%.2f", wood_ratio, hat_ratio)
+        return wood_ratio > 0.28 and hat_ratio > 0.10
+    except Exception:
+        return False
+
+
 async def navigate_to_wheel(page: Page, config: dict, state: BotState) -> None:
-    """Navigates to Dr. Abawuwu (Wheel of Fortune) using resolution-independent coordinates."""
+    """Navigate to Dr. Abawuwu (Wheel of Fortune) by pressing 'q' until the wheel is confirmed.
+
+    Falls back to dismissing popups (Escape) and clicking the Quarter -> Wheel sidebar icon
+    if keyboard cycling doesn't reach the wheel after a full pass.
+    """
     state.current_status = "Navegando a la ruleta"
     logger.info("Navigating to wheel...")
 
     if await is_char_select_visible(page, config):
         raise SessionDroppedError("Cannot navigate to the wheel without an active character session.")
 
-    wx, wy = await resolve_game_point(page, config, "wheel_rel", "wheel")
-    await page.mouse.click(wx, wy)
-    await asyncio.sleep(2.0)
+    if await is_wheel_visible(page):
+        logger.info("Already on Wheel of Fortune screen.")
+        return
+
+    wheel_key = str(config.get("selectors", {}).get("wheel_key", "q") or "q")
+
+    try:
+        await page.bring_to_front()
+        await page.evaluate("() => { const c = document.querySelector('#canvas'); if (c) c.focus(); }")
+    except Exception:
+        pass
+
+    for attempt in range(1, 9):
+        if not state.running:
+            return
+        if await is_char_select_visible(page, config):
+            raise SessionDroppedError("Session dropped while navigating to the wheel.")
+
+        await page.keyboard.press(wheel_key)
+        await asyncio.sleep(0.9)
+
+        if await is_wheel_visible(page):
+            logger.info("Wheel of Fortune confirmed after %d '%s' press(es).", attempt, wheel_key)
+            return
+
+        # After a full 4-tab Quarter cycle, dismiss any blocking popup and click sidebar fallback
+        if attempt in (4, 8):
+            logger.info("Wheel not detected after %d '%s' presses; trying Escape + sidebar click.", attempt, wheel_key)
+            try:
+                await page.keyboard.press("Escape")
+                await asyncio.sleep(0.5)
+            except Exception:
+                pass
+            wx, wy = await resolve_game_point(page, config, "wheel_rel", "wheel")
+            await page.mouse.click(wx, wy)
+            await asyncio.sleep(1.5)
+            if await is_wheel_visible(page):
+                logger.info("Wheel of Fortune confirmed via sidebar click.")
+                return
+
+    logger.warning("Could not visually confirm Wheel of Fortune after retries; continuing to TV search.")
 
 
 async def wait_for_tv_or_session_drop(page: Page, config: dict, state: BotState) -> None:

@@ -22,8 +22,9 @@ Bot visual para automatizar los anuncios de la TV Voladora (Dr. Abawuwu) en **Sh
 ## Instalación paso a paso
 
 ### Paso 1 — Descargar el bot
-1. En esta página de GitHub, haz clic en el botón verde **`<> Code`** → **`Download ZIP`**.
-2. Descomprime el archivo `.zip` en una carpeta de tu computadora (por ejemplo en el Escritorio).
+1. Haz clic aquí para descargar el archivo listo para usar:
+   👉 **[Descargar ShakesFortune.zip](https://github.com/abunader-dev/Shakes-Fortune-Bot/releases/latest/download/ShakesFortune.zip)**
+2. Descomprime `ShakesFortune.zip` — se creará la carpeta **`ShakesFortune`** lista para usar (puedes moverla al Escritorio si prefieres).
 
 ### Paso 2 — Instalar dependencias (solo una vez)
 1. Entra a la carpeta descomprimida y haz doble clic en **`Instalar.bat`**.

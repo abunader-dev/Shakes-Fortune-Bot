@@ -191,7 +191,9 @@ def format_activity_line(raw: str) -> Optional[tuple[str, str]]:
     if "character selection is still visible" in low:
         return ("⚠  No se pudo entrar al personaje — revisa la calibración", "warn")
     if "navigating to wheel" in low:
-        return ("🎡  Abriendo la Ruleta de Dr. Abawuwu...", "info")
+        return ("🎡  Yendo a la Ruleta de Dr. Abawuwu...", "info")
+    if "wheel of fortune confirmed" in low:
+        return ("✓  Ruleta de Dr. Abawuwu lista", "ok")
     if "waiting for flying tv" in low:
         return ("📺  Buscando la TV Voladora...", "info")
     if "ad started after" in low:
