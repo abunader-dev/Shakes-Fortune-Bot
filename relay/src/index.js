@@ -201,7 +201,7 @@ async function linkCodeToChat(env, code, chatId, fromUser) {
       "• /start — Iniciar el farmeo de anuncios\n" +
       "• /status — Ver estado y anuncios vistos\n" +
       "• /stop — Detener el proceso del bot\n" +
-      "• /desvincular — Desconectar esta PC de Telegram"
+      "• /desvincular — Desconectar esta PC"
   );
 }
 
