@@ -1,0 +1,21 @@
+# Credenciales — nunca compartir
+config.yaml
+auth.json
+state.json
+
+# Chrome profile local
+chrome-profile/
+
+# Capturas de debug
+debug_*.png
+test_*.png
+attached_*.png
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# VS Code
+.vscode/
+

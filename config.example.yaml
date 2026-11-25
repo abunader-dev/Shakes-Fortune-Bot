@@ -1,0 +1,60 @@
+# =============================================
+#  Shakes & Fortune Bot - Plantilla de configuracion
+#  Normalmente NO necesitas editar esto a mano:
+#  al ejecutar ShakesFortune.bat por primera vez,
+#  el asistente crea config.yaml automaticamente.
+# =============================================
+
+# --- Telegram (tu propio bot creado con @BotFather) ---
+telegram_token: "PON_TU_TOKEN_AQUI"
+
+# Se guarda automaticamente la primera vez que mandas /start a tu bot
+owner_chat_id: 0
+
+# --- Personaje (solo etiqueta para reportes de Telegram) ---
+character_name: "NombreDeTuPersonaje"
+server_id: "EU30"
+server_url: https://sfgame.net
+headless: false
+
+# --- Navegador (reutiliza Chrome abierto en puerto 9222) ---
+browser:
+  use_existing_browser: true
+  cdp_url: http://127.0.0.1:9222
+
+# --- Coordenadas relativas (0.0 a 1.0 dentro del area 16:9 del juego) ---
+# Funcionan en cualquier resolucion de pantalla (720p, 1080p, 1440p, 4K, etc.)
+selectors:
+  char_select_form: '#selectCharacterScene'
+  play_now_rel:
+    rx: 0.5000
+    ry: 0.9524
+  character_rel:
+    rx: 0.3500
+    ry: 0.5164
+  wheel_rel:
+    rx: 0.1851
+    ry: 0.5132
+  tv_rel:
+    rx: 0.3333
+    ry: 0.1323
+  ad_close_fallback_rel:
+    rx: 0.8851
+    ry: 0.1312
+  ad_container: '#ayetsdk_ad_container'
+  ad_wrapper: '#ayetsdk_content_wrapper'
+  video_element: 'video#ayetsdk_content_element, video'
+  play_button: '#ayetsdk_play_button'
+  close_buttons:
+    - '#ayetsdk_skipreward_button'
+    - '[id*="close"]'
+    - '[class*="close"]'
+
+# --- Tiempos (segundos) ---
+timing:
+  action_delay: 0.8
+  ad_wait_max: 60
+  poll_interval: 1.0
+  report_interval: 300
+  stop_timeout: 15
+  tv_wait_max: 300
