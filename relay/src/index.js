@@ -157,7 +157,7 @@ async function linkCodeToChat(env, code, chatId, fromUser) {
     await sendTelegramMessage(
       env,
       chatId,
-      "❌ Código inválido o expirado.\nGenerá uno nuevo desde <b>Shakes &amp; Fortune</b> en tu PC."
+      "❌ Código inválido o expirado.\nGenera uno nuevo desde <b>Shakes &amp; Fortune 🍀</b> en tu computadora."
     );
     return;
   }
@@ -195,7 +195,7 @@ async function linkCodeToChat(env, code, chatId, fromUser) {
     env,
     chatId,
     "✅ <b>¡PC vinculada con éxito!</b>\n\n" +
-      "Ya podés controlar tu bot desde acá:\n" +
+      "Ya puedes controlar tu bot desde aquí:\n" +
       "• /start — Iniciar el farmeo de anuncios\n" +
       "• /status — Ver estado y anuncios vistos\n" +
       "• /stop — Detener el bot\n" +
@@ -209,11 +209,11 @@ async function enqueueCommandForChat(env, chatId, command, ackText) {
     await sendTelegramMessage(
       env,
       chatId,
-      "👋 <b>¡Bienvenido a Shakes &amp; Fortune!</b>\n\n" +
-        "Todavía no vinculaste tu PC:\n" +
-        "1. Abrí <b>ShakesFortune.bat</b> en tu computadora\n" +
-        "2. Tocá <b>🤖 Vincular Telegram</b>\n" +
-        "3. Tocá el botón para abrir este chat o mandame <code>/vincular CODIGO</code>"
+      "👋 <b>¡Bienvenido a Shakes &amp; Fortune 🍀!</b>\n\n" +
+        "Todavía no has vinculado tu computadora:\n" +
+        "1. Abre <b>ShakesFortune.bat</b> en tu computadora\n" +
+        "2. Haz clic en <b>🍀 Vincular Telegram</b>\n" +
+        "3. Presiona el botón para abrir este chat o envíame <code>/vincular CODIGO</code>"
     );
     return;
   }
@@ -276,9 +276,9 @@ async function handleTelegramWebhook(request, env) {
         env.RELAY_KV.delete(`client:${secret}`),
         env.RELAY_KV.delete(`cmd:${secret}`),
       ]);
-      await sendTelegramMessage(env, chatId, "🔌 PC desvinculada. Podés volver a vincularla cuando quieras.");
+      await sendTelegramMessage(env, chatId, "🔌 PC desvinculada. Puedes volver a vincularla cuando quieras.");
     } else {
-      await sendTelegramMessage(env, chatId, "ℹ️ No tenés ninguna PC vinculada actualmente.");
+      await sendTelegramMessage(env, chatId, "ℹ️ No tienes ninguna PC vinculada actualmente.");
     }
   } else if (rawCmd === "/help" || rawCmd === "/ayuda") {
     await sendTelegramMessage(
