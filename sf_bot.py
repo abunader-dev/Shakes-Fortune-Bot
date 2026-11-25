@@ -39,6 +39,12 @@ DEFAULT_REL_COORDS: dict[str, tuple[float, float]] = {
 # Relative interior region of the Character Selection modal inside the 16:9 game area.
 CHAR_SELECT_REL_BOX: tuple[float, float, float, float] = (0.2321, 0.2116, 0.7381, 0.6667)
 
+# Relative top-left HUD regions that are ONLY populated when a character session is active
+# (on the Character Selection screen the portrait box is empty teal and the '+' button is greyed out).
+HUD_PORTRAIT_REL_BOX: tuple[float, float, float, float] = (0.015, 0.025, 0.072, 0.145)
+HUD_CURRENCIES_REL_BOX: tuple[float, float, float, float] = (0.075, 0.015, 0.165, 0.155)
+HUD_PLUS_BTN_REL_BOX: tuple[float, float, float, float] = (0.165, 0.085, 0.205, 0.155)
+
 # Relative regions inside the 16:9 game area that uniquely identify Dr. Abawuwu's Wheel screen:
 # 1) The large warm wooden wheel body on the right-center
 # 2) Dr. Abawuwu's bright white chef hat on the mid-left
@@ -135,53 +141,66 @@ def load_state(state: BotState, path: str = "state.json") -> None:
 
 
 async def is_char_select_visible(page: Page, config: dict) -> bool:
-    """Detecta si el juego está en el selector de personaje.
+    """Detect whether the game is at the Character Selection screen (logged out).
 
-    El selector muestra un modal DOM que cubre el centro de la pantalla con un
-    fondo azul-oscuro muy característico (r<25, g<45, 25<b<60).
-    En ese mismo área, la pantalla del juego en sesión tiene colores cálidos
-    (marrón, dorado, verde) propios del juego.
+    Combines two resolution-independent visual checks inside the 16:9 game viewport:
+      1. Active-HUD guard (top-left portrait, currency numbers, bright gold '+' button):
+         Present on EVERY in-game screen (Mail, Guild, Tavern, City, Wheel, etc.),
+         and completely absent/dimmed on the Character Selection screen.
+      2. Center modal background check (>30% dark navy-blue).
 
-    Umbrales calibrados sobre capturas reales:
-      - Selector: ~84 % píxeles azul-oscuro en zona (510,200)→(1360,630)
-      - En juego:  ~0 %  píxeles azul-oscuro en la misma zona
-    Umbral de corte: 30 % (> 30 % → selector visible).
+    Both must agree (no active HUD AND dark navy center modal) to avoid false positives
+    on dark in-game screens like Mail or Guild.
     """
     try:
-        # Chequeo rápido por URL
+        # Fast URL check
         if "login" in page.url.lower():
             return True
 
-        # Chequeo DOM (por si el juego expone algún elemento)
+        # Optional DOM check
         char_form = config.get("selectors", {}).get("char_select_form", "#selectCharacterScene")
         el = await page.query_selector(char_form)
         if el and await el.is_visible():
             return True
 
-        # Visual detection: the character-selection modal fills the center of the
-        # 16:9 game area with a distinctive dark navy-blue background.
         screenshot = await page.screenshot()
         image = Image.open(BytesIO(screenshot)).convert("RGB")
         img_w, img_h = image.size
         gx, gy, gw, gh = compute_game_rect(0.0, 0.0, float(img_w), float(img_h))
-        rx1, ry1, rx2, ry2 = CHAR_SELECT_REL_BOX
-        zone = image.crop(
-            (
-                int(gx + rx1 * gw),
-                int(gy + ry1 * gh),
-                int(gx + rx2 * gw),
-                int(gy + ry2 * gh),
+
+        def _crop(box: tuple[float, float, float, float]) -> list[tuple[int, int, int]]:
+            rx1, ry1, rx2, ry2 = box
+            return list(
+                image.crop(
+                    (
+                        int(gx + rx1 * gw),
+                        int(gy + ry1 * gh),
+                        int(gx + rx2 * gw),
+                        int(gy + ry2 * gh),
+                    )
+                ).getdata()
             )
-        )
-        pixels = list(zone.getdata())
-        total = len(pixels)
-        if total == 0:
+
+        # 1. Active character HUD guard — if portrait, currency text, or gold '+' is lit, we ARE in-game!
+        curr_px = _crop(HUD_CURRENCIES_REL_BOX)
+        plus_px = _crop(HUD_PLUS_BTN_REL_BOX)
+        port_px = _crop(HUD_PORTRAIT_REL_BOX)
+        if curr_px and plus_px and port_px:
+            curr_white = sum(1 for r, g, b in curr_px if r > 200 and g > 200 and b > 200) / len(curr_px)
+            plus_gold = sum(1 for r, g, b in plus_px if r > 180 and g > 130 and b < 70) / len(plus_px)
+            port_bright = sum(1 for r, g, b in port_px if max(r, g, b) > 130) / len(port_px)
+            if curr_white > 0.008 or plus_gold > 0.025 or port_bright > 0.08:
+                return False
+
+        # 2. Center modal dark navy-blue signature
+        center_px = _crop(CHAR_SELECT_REL_BOX)
+        if not center_px:
             return False
         modal_bg = sum(
-            1 for r, g, b in pixels
+            1 for r, g, b in center_px
             if r < 25 and g < 45 and 25 < b < 60
         )
-        return (modal_bg / total) > 0.30
+        return (modal_bg / len(center_px)) > 0.30
 
     except Exception:
         pass
