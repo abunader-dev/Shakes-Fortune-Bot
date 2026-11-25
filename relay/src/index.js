@@ -197,11 +197,11 @@ async function linkCodeToChat(env, code, chatId, fromUser) {
     env,
     chatId,
     "✅ <b>¡PC vinculada con éxito!</b>\n\n" +
-      "Ya puedes controlar tu bot desde aquí:\n" +
+      "Ya puedes controlar tu bot desde aquí:\n\n" +
       "• /start — Iniciar el farmeo de anuncios\n" +
       "• /status — Ver estado y anuncios vistos\n" +
-      "• /stop — Detener el bot\n" +
-      "• /desvincular — Desconectar esta PC"
+      "• /stop — Detener el proceso del bot\n" +
+      "• /desvincular — Desconectar ésta PC de Telegram"
   );
 }
 
@@ -213,10 +213,10 @@ async function enqueueCommandForChat(env, chatId, command, ackText) {
       env,
       chatId,
       "🍀 <b>¡Bienvenido a Shakes &amp; Fortune!</b>\n\n" +
-        "Todavía no has vinculado tu computadora. Para conectarla:\n" +
+        "Todavía no has vinculado tu PC, para conectarla:\n\n" +
         "1. Abre <b>ShakesFortune.bat</b> en tu PC\n" +
         "2. Haz clic en <b>🍀 Vincular Telegram</b>\n" +
-        "3. Toca el botón verde en la app o <b>escribe aquí directamente el código de 6 dígitos</b>"
+        "3. Toca el botón verde en la app o <b>escribe aquí /vincular, seguido del código de 6 dígitos</b>"
     );
     return;
   }
@@ -265,7 +265,7 @@ async function handleTelegramWebhook(request, env) {
       await sendTelegramMessage(
         env,
         chatId,
-        "🔑 <b>Escribe ahora tu código de 6 dígitos</b>\n" +
+        "🔑 <b>Escribe ahora tu código de 6 dígitos</b>\n\n" +
           "<i>(Es el código que aparece al hacer clic en '🍀 Vincular Telegram' en Shakes &amp; Fortune)</i>",
         "HTML",
         {
@@ -286,7 +286,7 @@ async function handleTelegramWebhook(request, env) {
       env,
       chatId,
       "start",
-      "⏳ Enviando <b>/start</b> a tu PC...\n\n<i>Si reinstalaste la app o cambiaste de PC, usa /vincular para conectar de nuevo.</i>"
+      "⏳ Inizializando <b>Shakes &amp; Fortune</b>\n\n<i>Si reinstalaste la app o cambiaste de PC, usa /vincular para conectar de nuevo.</i>"
     );
   } else if (rawCmd === "/stop") {
     await enqueueCommandForChat(env, chatId, "stop", "⏳ Enviando <b>/stop</b> a tu PC...");
@@ -301,7 +301,7 @@ async function handleTelegramWebhook(request, env) {
         env.RELAY_KV.delete(`client:${secret}`),
         env.RELAY_KV.delete(`cmd:${secret}`),
       ]);
-      await sendTelegramMessage(env, chatId, "🔌 PC desvinculada. Puedes volver a vincularla cuando quieras.");
+      await sendTelegramMessage(env, chatId, "🔌 PC desvinculada. Puedes volver a conectarla cuando quieras.");
     } else {
       await sendTelegramMessage(env, chatId, "ℹ️ No tienes ninguna PC vinculada actualmente.");
     }
