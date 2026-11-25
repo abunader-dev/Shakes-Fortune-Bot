@@ -208,14 +208,15 @@ async function linkCodeToChat(env, code, chatId, fromUser) {
 async function enqueueCommandForChat(env, chatId, command, ackText) {
   const chatRaw = await env.RELAY_KV.get(`chat:${chatId}`);
   if (!chatRaw) {
+    await env.RELAY_KV.put(`await_pair:${chatId}`, "1", { expirationTtl: PAIR_TTL_SECONDS });
     await sendTelegramMessage(
       env,
       chatId,
-      "👋 <b>¡Bienvenido a Shakes &amp; Fortune 🍀!</b>\n\n" +
-        "Todavía no has vinculado tu computadora:\n" +
-        "1. Abre <b>ShakesFortune.bat</b> en tu computadora\n" +
+      "🍀 <b>¡Bienvenido a Shakes &amp; Fortune!</b>\n\n" +
+        "Todavía no has vinculado tu computadora. Para conectarla:\n" +
+        "1. Abre <b>ShakesFortune.bat</b> en tu PC\n" +
         "2. Haz clic en <b>🍀 Vincular Telegram</b>\n" +
-        "3. Presiona el botón para abrir este chat o envíame <code>/vincular CODIGO</code>"
+        "3. Toca el botón verde en la app o <b>escribe aquí directamente el código de 6 dígitos</b>"
     );
     return;
   }
@@ -281,7 +282,12 @@ async function handleTelegramWebhook(request, env) {
     // Deep link: https://t.me/shakes_fortune_bot?start=482913
     await linkCodeToChat(env, arg, chatId, fromUser);
   } else if (rawCmd === "/start") {
-    await enqueueCommandForChat(env, chatId, "start", "⏳ Enviando <b>/start</b> a tu PC...");
+    await enqueueCommandForChat(
+      env,
+      chatId,
+      "start",
+      "⏳ Enviando <b>/start</b> a tu PC...\n\n<i>Si reinstalaste la app o cambiaste de PC, usa /vincular para conectar de nuevo.</i>"
+    );
   } else if (rawCmd === "/stop") {
     await enqueueCommandForChat(env, chatId, "stop", "⏳ Enviando <b>/stop</b> a tu PC...");
   } else if (rawCmd === "/status") {
