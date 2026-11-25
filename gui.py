@@ -324,7 +324,7 @@ class RPGButton(tk.Label):
 class ShakesFortuneApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Shakes & Fortune 🍀")
+        self.title("Shakes & Fortune Launcher")
         self.geometry("980x670")
         self.minsize(900, 610)
         self.configure(bg=BG_ABYSS)
@@ -378,7 +378,7 @@ class ShakesFortuneApp(tk.Tk):
 
         tk.Label(
             title_stack,
-            text="Shakes & Fortune 🍀",
+            text="Shakes & Fortune",
             font=FONT_TITLE,
             fg=GOLD_BRIGHT,
             bg=BG_PANEL,
