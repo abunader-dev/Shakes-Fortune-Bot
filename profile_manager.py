@@ -10,6 +10,7 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
+import httpx
 import yaml
 from playwright.async_api import async_playwright
 
@@ -256,20 +257,20 @@ def is_relay_linked(config: dict) -> bool:
 def relay_create_pair(relay_url: str = DEFAULT_RELAY_URL) -> dict:
     """Request a 6-digit pairing code and client secret from the shared relay."""
     url = f"{relay_url.rstrip('/')}/api/pair/create"
-    req = urllib.request.Request(url, data=b"{}", headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-        if not data.get("ok"):
-            raise RuntimeError("Relay rechazó la solicitud de vinculación.")
-        return data
+    resp = httpx.post(url, json={}, timeout=10.0)
+    resp.raise_for_status()
+    data = resp.json()
+    if not data.get("ok"):
+        raise RuntimeError("Relay rechazó la solicitud de vinculación.")
+    return data
 
 
 def relay_check_pair_status(relay_url: str, secret: str) -> dict:
     """Poll whether the user completed /vincular in @shakes_fortune_bot."""
     url = f"{relay_url.rstrip('/')}/api/pair/status"
-    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {secret}"})
-    with urllib.request.urlopen(req, timeout=8) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    resp = httpx.get(url, headers={"Authorization": f"Bearer {secret}"}, timeout=8.0)
+    resp.raise_for_status()
+    return resp.json()
 
 
 def validate_telegram_token(token: str) -> Optional[dict]:
