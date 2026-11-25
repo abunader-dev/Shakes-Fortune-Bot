@@ -201,7 +201,7 @@ async function linkCodeToChat(env, code, chatId, fromUser) {
       "• /start — Iniciar el farmeo de anuncios\n" +
       "• /status — Ver estado y anuncios vistos\n" +
       "• /stop — Detener el proceso del bot\n" +
-      "• /desvincular — Desconectar ésta PC de Telegram"
+      "• /desvincular — Desconectar esta PC de Telegram"
   );
 }
 
@@ -286,7 +286,7 @@ async function handleTelegramWebhook(request, env) {
       env,
       chatId,
       "start",
-      "⏳ Inizializando <b>Shakes &amp; Fortune</b>\n\n<i>Si reinstalaste la app o cambiaste de PC, usa /vincular para conectar de nuevo.</i>"
+      "⏳ Inicializando <b>Shakes &amp; Fortune</b>\n\n<i>Si reinstalaste la app o cambiaste de PC, usa /vincular para conectar de nuevo.</i>"
     );
   } else if (rawCmd === "/stop") {
     await enqueueCommandForChat(env, chatId, "stop", "⏳ Enviando <b>/stop</b> a tu PC...");
