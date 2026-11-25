@@ -1,5 +1,5 @@
 @echo off
-title Shakes & Fortune - Instalacion
+title Shakes ^& Fortune - Instalacion
 color 0B
 cd /d "%~dp0"
 
