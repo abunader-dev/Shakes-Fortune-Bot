@@ -2,6 +2,7 @@ name = "shakes-fortune-relay"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 
-[[kv_namespaces]]
-binding = "RELAY_KV"
-id = "32a3717e8b164ef48409ea60b1d183f7"
+[[d1_databases]]
+binding = "RELAY_DB"
+database_name = "shakes-fortune-db"
+database_id = "e91e9654-891e-4878-b591-50d686e5c10a"

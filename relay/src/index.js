@@ -1,20 +1,19 @@
 /**
- * Shakes & Fortune — Telegram Relay Worker (Cloudflare Workers + KV)
+ * Shakes & Fortune — Telegram Relay Worker (Cloudflare Workers + D1 SQLite)
  *
- * Allows multiple users to control their own local Shakes & Fortune bot
- * through a single shared Telegram bot (@shakes_fortune_bot) without ever
- * exposing the Telegram Bot Token to client machines.
+ * Uses strongly consistent Cloudflare D1 so pairing codes and /start /stop /status
+ * commands are visible to client PCs immediately (zero 60s KV negative caching).
  *
  * Required Worker Secrets (set via `wrangler secret put`):
  *   - TELEGRAM_TOKEN  : Bot token from @BotFather
  *   - WEBHOOK_SECRET  : Random secret used to validate Telegram webhook requests
  *
- * Required KV Binding:
- *   - RELAY_KV        : Cloudflare KV namespace
+ * Required D1 Binding:
+ *   - RELAY_DB        : Cloudflare D1 database (shakes-fortune-db)
  */
 
-const PAIR_TTL_SECONDS = 600; // 10 minutes
-const CMD_TTL_SECONDS = 180;  // 3 minutes
+const PAIR_TTL_MS = 600 * 1000; // 10 minutes
+const CMD_TTL_MS = 180 * 1000;  // 3 minutes
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -61,27 +60,33 @@ async function sendTelegramMessage(env, chatId, text, parseMode = "HTML", extra 
 }
 
 async function handlePairCreate(env) {
+  const now = Date.now();
+  const expiresAt = now + PAIR_TTL_MS;
   const secret = randomHex(24);
   let code = randomSixDigitCode();
 
-  // Avoid rare collisions
+  // Opportunistic cleanup of expired pairing codes
+  await env.RELAY_DB.prepare("DELETE FROM pairs WHERE expires_at < ?").bind(now).run();
+
   for (let i = 0; i < 5; i++) {
-    const existing = await env.RELAY_KV.get(`pair:${code}`);
+    const existing = await env.RELAY_DB.prepare("SELECT code FROM pairs WHERE code = ?")
+      .bind(code)
+      .first();
     if (!existing) break;
     code = randomSixDigitCode();
   }
 
-  await env.RELAY_KV.put(
-    `pair:${code}`,
-    JSON.stringify({ secret, created_at: Date.now() }),
-    { expirationTtl: PAIR_TTL_SECONDS }
-  );
+  await env.RELAY_DB.prepare(
+    "INSERT OR REPLACE INTO pairs (code, secret, expires_at) VALUES (?, ?, ?)"
+  )
+    .bind(code, secret, expiresAt)
+    .run();
 
   return jsonResponse({
     ok: true,
     code,
     secret,
-    expires_in: PAIR_TTL_SECONDS,
+    expires_in: Math.floor(PAIR_TTL_MS / 1000),
   });
 }
 
@@ -89,11 +94,15 @@ async function handlePairStatus(request, env) {
   const secret = getBearerSecret(request);
   if (!secret) return jsonResponse({ ok: false, error: "missing_secret" }, 401);
 
-  const clientRaw = await env.RELAY_KV.get(`client:${secret}`);
-  if (!clientRaw) {
+  const client = await env.RELAY_DB.prepare(
+    "SELECT chat_id, username, first_name FROM clients WHERE secret = ?"
+  )
+    .bind(secret)
+    .first();
+
+  if (!client) {
     return jsonResponse({ ok: true, linked: false });
   }
-  const client = JSON.parse(clientRaw);
   return jsonResponse({
     ok: true,
     linked: true,
@@ -106,26 +115,36 @@ async function handlePoll(request, env) {
   const secret = getBearerSecret(request);
   if (!secret) return jsonResponse({ ok: false, error: "missing_secret" }, 401);
 
-  const cmdRaw = await env.RELAY_KV.get(`cmd:${secret}`);
-  if (cmdRaw) {
-    await env.RELAY_KV.delete(`cmd:${secret}`);
-    const cmdObj = JSON.parse(cmdRaw);
-    return jsonResponse({ ok: true, linked: true, command: cmdObj.command });
+  const now = Date.now();
+  const cmdRow = await env.RELAY_DB.prepare(
+    "SELECT command, expires_at FROM commands WHERE secret = ?"
+  )
+    .bind(secret)
+    .first();
+
+  if (cmdRow) {
+    await env.RELAY_DB.prepare("DELETE FROM commands WHERE secret = ?").bind(secret).run();
+    if (cmdRow.expires_at >= now) {
+      return jsonResponse({ ok: true, linked: true, command: cmdRow.command });
+    }
   }
 
-  const clientRaw = await env.RELAY_KV.get(`client:${secret}`);
-  return jsonResponse({ ok: true, linked: Boolean(clientRaw), command: null });
+  const client = await env.RELAY_DB.prepare("SELECT secret FROM clients WHERE secret = ?")
+    .bind(secret)
+    .first();
+  return jsonResponse({ ok: true, linked: Boolean(client), command: null });
 }
 
 async function handleNotify(request, env) {
   const secret = getBearerSecret(request);
   if (!secret) return jsonResponse({ ok: false, error: "missing_secret" }, 401);
 
-  const clientRaw = await env.RELAY_KV.get(`client:${secret}`);
-  if (!clientRaw) {
+  const client = await env.RELAY_DB.prepare("SELECT chat_id FROM clients WHERE secret = ?")
+    .bind(secret)
+    .first();
+  if (!client) {
     return jsonResponse({ ok: false, error: "not_linked" }, 403);
   }
-  const client = JSON.parse(clientRaw);
 
   let body;
   try {
@@ -153,8 +172,14 @@ async function linkCodeToChat(env, code, chatId, fromUser) {
     return;
   }
 
-  const pairRaw = await env.RELAY_KV.get(`pair:${cleanCode}`);
-  if (!pairRaw) {
+  const now = Date.now();
+  const pair = await env.RELAY_DB.prepare(
+    "SELECT secret, expires_at FROM pairs WHERE code = ?"
+  )
+    .bind(cleanCode)
+    .first();
+
+  if (!pair || pair.expires_at < now) {
     await sendTelegramMessage(
       env,
       chatId,
@@ -163,34 +188,19 @@ async function linkCodeToChat(env, code, chatId, fromUser) {
     return;
   }
 
-  const pair = JSON.parse(pairRaw);
   const newSecret = pair.secret;
+  const username = fromUser?.username || "";
+  const firstName = fromUser?.first_name || "";
 
-  // Clean up any previous binding for this Telegram chat
-  const oldChatRaw = await env.RELAY_KV.get(`chat:${chatId}`);
-  if (oldChatRaw) {
-    try {
-      const oldChat = JSON.parse(oldChatRaw);
-      if (oldChat.secret && oldChat.secret !== newSecret) {
-        await env.RELAY_KV.delete(`client:${oldChat.secret}`);
-      }
-    } catch {
-      // ignore malformed legacy value
-    }
-  }
-
-  const meta = {
-    chat_id: chatId,
-    username: fromUser?.username || "",
-    first_name: fromUser?.first_name || "",
-    linked_at: Date.now(),
-  };
-
-  await Promise.all([
-    env.RELAY_KV.put(`client:${newSecret}`, JSON.stringify(meta)),
-    env.RELAY_KV.put(`chat:${chatId}`, JSON.stringify({ secret: newSecret, linked_at: Date.now() })),
-    env.RELAY_KV.delete(`pair:${cleanCode}`),
-    env.RELAY_KV.delete(`await_pair:${chatId}`),
+  // Atomically replace any previous binding for this chat_id and clear pending pairing state
+  await env.RELAY_DB.batch([
+    env.RELAY_DB.prepare("DELETE FROM commands WHERE secret IN (SELECT secret FROM clients WHERE chat_id = ?)").bind(chatId),
+    env.RELAY_DB.prepare("DELETE FROM clients WHERE chat_id = ?").bind(chatId),
+    env.RELAY_DB.prepare(
+      "INSERT OR REPLACE INTO clients (secret, chat_id, username, first_name, linked_at) VALUES (?, ?, ?, ?, ?)"
+    ).bind(newSecret, chatId, username, firstName, now),
+    env.RELAY_DB.prepare("DELETE FROM pairs WHERE code = ?").bind(cleanCode),
+    env.RELAY_DB.prepare("DELETE FROM awaiting_pair WHERE chat_id = ?").bind(chatId),
   ]);
 
   await sendTelegramMessage(
@@ -206,9 +216,17 @@ async function linkCodeToChat(env, code, chatId, fromUser) {
 }
 
 async function enqueueCommandForChat(env, chatId, command, ackText) {
-  const chatRaw = await env.RELAY_KV.get(`chat:${chatId}`);
-  if (!chatRaw) {
-    await env.RELAY_KV.put(`await_pair:${chatId}`, "1", { expirationTtl: PAIR_TTL_SECONDS });
+  const client = await env.RELAY_DB.prepare("SELECT secret FROM clients WHERE chat_id = ?")
+    .bind(chatId)
+    .first();
+
+  if (!client) {
+    await env.RELAY_DB.prepare(
+      "INSERT OR REPLACE INTO awaiting_pair (chat_id, expires_at) VALUES (?, ?)"
+    )
+      .bind(chatId, Date.now() + PAIR_TTL_MS)
+      .run();
+
     await sendTelegramMessage(
       env,
       chatId,
@@ -221,12 +239,11 @@ async function enqueueCommandForChat(env, chatId, command, ackText) {
     return;
   }
 
-  const { secret } = JSON.parse(chatRaw);
-  await env.RELAY_KV.put(
-    `cmd:${secret}`,
-    JSON.stringify({ command, ts: Date.now() }),
-    { expirationTtl: CMD_TTL_SECONDS }
-  );
+  await env.RELAY_DB.prepare(
+    "INSERT OR REPLACE INTO commands (secret, command, expires_at) VALUES (?, ?, ?)"
+  )
+    .bind(client.secret, command, Date.now() + CMD_TTL_MS)
+    .run();
 
   if (ackText) {
     await sendTelegramMessage(env, chatId, ackText);
@@ -234,7 +251,6 @@ async function enqueueCommandForChat(env, chatId, command, ackText) {
 }
 
 async function handleTelegramWebhook(request, env) {
-  // Validate Telegram webhook secret header
   const headerSecret = request.headers.get("x-telegram-bot-api-secret-token") || "";
   if (!env.WEBHOOK_SECRET || headerSecret !== env.WEBHOOK_SECRET) {
     return jsonResponse({ ok: false, error: "forbidden" }, 403);
@@ -261,7 +277,12 @@ async function handleTelegramWebhook(request, env) {
 
   if (rawCmd === "/vincular") {
     if (!arg) {
-      await env.RELAY_KV.put(`await_pair:${chatId}`, "1", { expirationTtl: PAIR_TTL_SECONDS });
+      await env.RELAY_DB.prepare(
+        "INSERT OR REPLACE INTO awaiting_pair (chat_id, expires_at) VALUES (?, ?)"
+      )
+        .bind(chatId, Date.now() + PAIR_TTL_MS)
+        .run();
+
       await sendTelegramMessage(
         env,
         chatId,
@@ -279,7 +300,6 @@ async function handleTelegramWebhook(request, env) {
       await linkCodeToChat(env, arg, chatId, fromUser);
     }
   } else if (rawCmd === "/start" && arg) {
-    // Deep link: https://t.me/shakes_fortune_bot?start=482913
     await linkCodeToChat(env, arg, chatId, fromUser);
   } else if (rawCmd === "/start") {
     await enqueueCommandForChat(
@@ -293,13 +313,13 @@ async function handleTelegramWebhook(request, env) {
   } else if (rawCmd === "/status") {
     await enqueueCommandForChat(env, chatId, "status", null);
   } else if (rawCmd === "/desvincular") {
-    const chatRaw = await env.RELAY_KV.get(`chat:${chatId}`);
-    if (chatRaw) {
-      const { secret } = JSON.parse(chatRaw);
-      await Promise.all([
-        env.RELAY_KV.delete(`chat:${chatId}`),
-        env.RELAY_KV.delete(`client:${secret}`),
-        env.RELAY_KV.delete(`cmd:${secret}`),
+    const client = await env.RELAY_DB.prepare("SELECT secret FROM clients WHERE chat_id = ?")
+      .bind(chatId)
+      .first();
+    if (client) {
+      await env.RELAY_DB.batch([
+        env.RELAY_DB.prepare("DELETE FROM commands WHERE secret = ?").bind(client.secret),
+        env.RELAY_DB.prepare("DELETE FROM clients WHERE chat_id = ?").bind(chatId),
       ]);
       await sendTelegramMessage(env, chatId, "🔌 PC desvinculada. Puedes volver a conectarla cuando quieras.");
     } else {
@@ -317,12 +337,16 @@ async function handleTelegramWebhook(request, env) {
         "• /desvincular — Desconectar tu PC"
     );
   } else if (!text.startsWith("/")) {
-    // Support replying directly with a 6-digit pairing code (e.g. "482913" or "482 913")
     const digitsOnly = text.replace(/\s+/g, "");
-    const awaiting = await env.RELAY_KV.get(`await_pair:${chatId}`);
+    const awaiting = await env.RELAY_DB.prepare(
+      "SELECT expires_at FROM awaiting_pair WHERE chat_id = ?"
+    )
+      .bind(chatId)
+      .first();
+
     if (/^\d{6}$/.test(digitsOnly)) {
       await linkCodeToChat(env, digitsOnly, chatId, fromUser);
-    } else if (awaiting) {
+    } else if (awaiting && awaiting.expires_at >= Date.now()) {
       await sendTelegramMessage(
         env,
         chatId,
@@ -341,7 +365,12 @@ export default {
     const method = request.method.toUpperCase();
 
     if (method === "GET" && pathname === "/health") {
-      return jsonResponse({ ok: true, service: "shakes-fortune-relay", bot: "@shakes_fortune_bot" });
+      return jsonResponse({
+        ok: true,
+        service: "shakes-fortune-relay",
+        storage: "d1",
+        bot: "@shakes_fortune_bot",
+      });
     }
     if (method === "POST" && pathname === "/telegram") {
       return handleTelegramWebhook(request, env);
