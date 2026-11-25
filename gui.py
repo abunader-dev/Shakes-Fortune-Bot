@@ -339,6 +339,8 @@ class ShakesFortuneApp(tk.Tk):
         self.bot_proc: Optional[subprocess.Popen] = None
         self.event_queue: queue.Queue[tuple[str, str]] = queue.Queue()
         self.calibrating = False
+        self._closing = False
+        self._idle_polling = False
         self.autostart_var = tk.BooleanVar(value=True)
         self.card_widgets: list[tk.Frame] = []
 
@@ -346,6 +348,7 @@ class ShakesFortuneApp(tk.Tk):
         self._refresh_roster()
         self._refresh_summary()
         self._poll_status()
+        self._poll_relay_idle()
         self._drain_events()
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -1273,26 +1276,45 @@ class ShakesFortuneApp(tk.Tk):
         else:
             self._start_bot()
 
-    def _start_bot(self) -> None:
+    def _start_bot(self, *, from_telegram: bool = False) -> None:
+        relay_url = pm.get_relay_url(self.config_data)
+        relay_secret = str((self.config_data.get("relay") or {}).get("client_secret", "")).strip()
+
+        def _notify_remote(msg: str) -> None:
+            if from_telegram and relay_secret:
+                threading.Thread(
+                    target=pm.relay_notify_once,
+                    args=(relay_url, relay_secret, msg),
+                    daemon=True,
+                ).start()
+
         if not pm.is_relay_linked(self.config_data):
-            messagebox.showinfo(
-                "Vincula Telegram primero",
-                f"Conecta tu cuenta con @{pm.BOT_USERNAME} en unos segundos antes de empezar.",
-            )
-            self._open_telegram_dialog()
+            if not from_telegram:
+                messagebox.showinfo(
+                    "Vincula Telegram primero",
+                    f"Conecta tu cuenta con @{pm.BOT_USERNAME} en unos segundos antes de empezar.",
+                )
+                self._open_telegram_dialog()
             return
 
         if not self.config_data.get("profiles"):
-            messagebox.showinfo(
-                "Elige tu personaje",
-                "Agrega y calibra tu personaje con '+ Nuevo' antes de iniciar.",
-            )
-            self._open_new_character_dialog()
+            if from_telegram:
+                self._push_event("⚠  Telegram solicitó iniciar, pero aún no hay personajes guardados.", "warn")
+                _notify_remote("⚠️ Todavía no has agregado un personaje en <b>Shakes &amp; Fortune</b>. Agrégalo con '+ Nuevo' y vuelve a enviar /start.")
+            else:
+                messagebox.showinfo(
+                    "Elige tu personaje",
+                    "Agrega y calibra tu personaje con '+ Nuevo' antes de iniciar.",
+                )
+                self._open_new_character_dialog()
             return
 
         cdp_url = self.config_data.get("browser", {}).get("cdp_url", pm.DEFAULT_CDP_URL)
         if not pm.is_cdp_ready(cdp_url):
-            if messagebox.askyesno(
+            if from_telegram:
+                self._push_event("⚠  Telegram solicitó iniciar, pero el juego no está abierto.", "warn")
+                _notify_remote("⚠️ El navegador del juego no está abierto en tu PC.\nHaz clic en <b>🌐 Abrir el juego</b> en la app y vuelve a enviar /start.")
+            elif messagebox.askyesno(
                 "Abre el juego primero",
                 "El navegador del juego todavía no está abierto.\n\n¿Quieres abrir sfgame.net ahora?",
             ):
@@ -1308,8 +1330,9 @@ class ShakesFortuneApp(tk.Tk):
             if os.path.exists(candidate):
                 py_exe = candidate
 
+        should_autostart = from_telegram or self.autostart_var.get()
         cmd = [py_exe, "-u", "main.py"]
-        if self.autostart_var.get():
+        if should_autostart:
             cmd.append("--autostart")
 
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
@@ -1328,7 +1351,10 @@ class ShakesFortuneApp(tk.Tk):
                 env=env,
             )
         except Exception as exc:
-            messagebox.showerror("No se pudo iniciar", str(exc))
+            if from_telegram:
+                _notify_remote(f"❌ No se pudo iniciar el bot en tu PC: {exc}")
+            else:
+                messagebox.showerror("No se pudo iniciar", str(exc))
             return
 
         self.btn_play.set_style(
@@ -1342,7 +1368,9 @@ class ShakesFortuneApp(tk.Tk):
 
         char = self.config_data.get("character_name", "")
         srv = self.config_data.get("server_id", "")
-        if self.autostart_var.get():
+        if from_telegram:
+            self._push_event(f"📱  Inicio remoto desde Telegram — farmeando con {char} ({srv}).", "gold_bold")
+        elif should_autostart:
             self._push_event(f"🚀  Farmeo iniciado con {char} ({srv}).", "gold_bold")
         else:
             self._push_event(f"📱  Bot en espera — envía /start en @{pm.BOT_USERNAME} para comenzar.", "sky")
@@ -1356,23 +1384,29 @@ class ShakesFortuneApp(tk.Tk):
                 if formatted:
                     self.event_queue.put(formatted)
         proc.wait()
-        self.after(0, self._on_bot_exited)
+        self.after(0, lambda p=proc: self._on_bot_exited(p))
 
     def _stop_bot(self) -> None:
         if not self._is_bot_running():
             return
+        proc = self.bot_proc
         self._push_event("⏹  Deteniendo farmeo...", "warn")
         try:
-            self.bot_proc.terminate()
+            proc.terminate()
             try:
-                self.bot_proc.wait(timeout=4)
+                proc.wait(timeout=4)
             except subprocess.TimeoutExpired:
-                self.bot_proc.kill()
+                proc.kill()
         except Exception:
             pass
-        self._on_bot_exited()
+        self._on_bot_exited(proc)
 
-    def _on_bot_exited(self) -> None:
+    def _on_bot_exited(self, proc: Optional[subprocess.Popen] = None) -> None:
+        if proc is not None and self.bot_proc is not None and proc is not self.bot_proc:
+            return
+        if self.bot_proc is None:
+            return
+        self.bot_proc = None
         self.btn_play.set_style(
             text="▶  INICIAR FARMEO",
             bg=EMERALD,
@@ -1381,7 +1415,61 @@ class ShakesFortuneApp(tk.Tk):
             hover_border="#9bf0be",
         )
         self.pill_bot.configure(text="● En pausa", fg=TEXT_MUTED, highlightbackground=BORDER_SUBTLE)
-        self._push_event("💤  Bot detenido.", "muted")
+        self._push_event("💤  Bot detenido (sigue escuchando /start desde Telegram).", "muted")
+
+    # ------------------------------------------------------------------
+    # Background Telegram Relay Listener (while launcher is open & idle)
+    # ------------------------------------------------------------------
+    def _poll_relay_idle(self) -> None:
+        if self._closing:
+            return
+
+        if not self._is_bot_running() and not self._idle_polling and pm.is_relay_linked(self.config_data):
+            relay_url = pm.get_relay_url(self.config_data)
+            secret = str((self.config_data.get("relay") or {}).get("client_secret", "")).strip()
+            self._idle_polling = True
+
+            def worker():
+                cmd = None
+                try:
+                    data = pm.relay_poll_once(relay_url, secret)
+                    cmd = data.get("command")
+                except Exception:
+                    pass
+                finally:
+                    self.after(0, lambda c=cmd: self._on_idle_relay_command(c))
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        self.after(4000, self._poll_relay_idle)
+
+    def _on_idle_relay_command(self, cmd: Optional[str]) -> None:
+        self._idle_polling = False
+        if not cmd or self._closing or self._is_bot_running():
+            return
+
+        relay_url = pm.get_relay_url(self.config_data)
+        secret = str((self.config_data.get("relay") or {}).get("client_secret", "")).strip()
+
+        if cmd == "start":
+            self._start_bot(from_telegram=True)
+        elif cmd == "status":
+            stats = pm.read_bot_stats()
+            char = self.config_data.get("character_name", "Sin configurar")
+            srv = self.config_data.get("server_id", "")
+            char_label = f"{char} ({srv})" if srv else char
+            msg = (
+                f"📊 <b>Estado actual</b>\n\n"
+                f"🧙 Personaje: {char_label}\n"
+                f"📺 Anuncios Vistos: {stats.get('ads_watched', 0)}\n"
+                f"🔄 Estado: En pausa (launcher abierto)\n\n"
+                f"Envía /start para comenzar a farmear."
+            )
+            self._push_event("📱  Estado enviado a Telegram.", "info")
+            threading.Thread(target=pm.relay_notify_once, args=(relay_url, secret, msg), daemon=True).start()
+        elif cmd == "stop":
+            msg = "ℹ️ El bot ya estaba detenido en tu PC."
+            threading.Thread(target=pm.relay_notify_once, args=(relay_url, secret, msg), daemon=True).start()
 
     # ------------------------------------------------------------------
     # Status Polling & Stylized Activity Feed
@@ -1429,6 +1517,7 @@ class ShakesFortuneApp(tk.Tk):
         self.feed_text.configure(state="disabled")
 
     def _on_close(self) -> None:
+        self._closing = True
         if self._is_bot_running():
             self._stop_bot()
         self.destroy()

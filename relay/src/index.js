@@ -45,7 +45,7 @@ function getBearerSecret(request) {
   return token.length >= 16 ? token : null;
 }
 
-async function sendTelegramMessage(env, chatId, text, parseMode = "HTML") {
+async function sendTelegramMessage(env, chatId, text, parseMode = "HTML", extra = {}) {
   const url = `https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage`;
   const resp = await fetch(url, {
     method: "POST",
@@ -54,6 +54,7 @@ async function sendTelegramMessage(env, chatId, text, parseMode = "HTML") {
       chat_id: chatId,
       text,
       parse_mode: parseMode,
+      ...extra,
     }),
   });
   return resp.ok;
@@ -189,6 +190,7 @@ async function linkCodeToChat(env, code, chatId, fromUser) {
     env.RELAY_KV.put(`client:${newSecret}`, JSON.stringify(meta)),
     env.RELAY_KV.put(`chat:${chatId}`, JSON.stringify({ secret: newSecret, linked_at: Date.now() })),
     env.RELAY_KV.delete(`pair:${cleanCode}`),
+    env.RELAY_KV.delete(`await_pair:${chatId}`),
   ]);
 
   await sendTelegramMessage(
@@ -257,7 +259,24 @@ async function handleTelegramWebhook(request, env) {
   const arg = parts.slice(1).join(" ").trim();
 
   if (rawCmd === "/vincular") {
-    await linkCodeToChat(env, arg, chatId, fromUser);
+    if (!arg) {
+      await env.RELAY_KV.put(`await_pair:${chatId}`, "1", { expirationTtl: PAIR_TTL_SECONDS });
+      await sendTelegramMessage(
+        env,
+        chatId,
+        "🔑 <b>Escribe ahora tu código de 6 dígitos</b>\n" +
+          "<i>(Es el código que aparece al hacer clic en '🍀 Vincular Telegram' en Shakes &amp; Fortune)</i>",
+        "HTML",
+        {
+          reply_markup: {
+            force_reply: true,
+            input_field_placeholder: "Ej: 482913",
+          },
+        }
+      );
+    } else {
+      await linkCodeToChat(env, arg, chatId, fromUser);
+    }
   } else if (rawCmd === "/start" && arg) {
     // Deep link: https://t.me/shakes_fortune_bot?start=482913
     await linkCodeToChat(env, arg, chatId, fromUser);
@@ -285,12 +304,25 @@ async function handleTelegramWebhook(request, env) {
       env,
       chatId,
       "🍀 <b>Shakes &amp; Fortune — Comandos</b>\n\n" +
-        "• /vincular CODIGO — Vincular tu PC\n" +
+        "• /vincular — Vincular tu PC con código de 6 dígitos\n" +
         "• /start — Iniciar el bot en tu PC\n" +
         "• /status — Ver progreso actual\n" +
         "• /stop — Detener el bot\n" +
         "• /desvincular — Desconectar tu PC"
     );
+  } else if (!text.startsWith("/")) {
+    // Support replying directly with a 6-digit pairing code (e.g. "482913" or "482 913")
+    const digitsOnly = text.replace(/\s+/g, "");
+    const awaiting = await env.RELAY_KV.get(`await_pair:${chatId}`);
+    if (/^\d{6}$/.test(digitsOnly)) {
+      await linkCodeToChat(env, digitsOnly, chatId, fromUser);
+    } else if (awaiting) {
+      await sendTelegramMessage(
+        env,
+        chatId,
+        "❌ Eso no parece un código de 6 dígitos.\nEnvía solo los 6 números que aparecen en la app (ejemplo: <code>482913</code>)."
+      );
+    }
   }
 
   return jsonResponse({ ok: true });

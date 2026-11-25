@@ -273,6 +273,29 @@ def relay_check_pair_status(relay_url: str, secret: str) -> dict:
     return resp.json()
 
 
+def relay_poll_once(relay_url: str, secret: str) -> dict:
+    """Single synchronous poll used by the launcher while the farming process is idle."""
+    url = f"{relay_url.rstrip('/')}/api/poll"
+    resp = httpx.get(url, headers={"Authorization": f"Bearer {secret}"}, timeout=8.0)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def relay_notify_once(relay_url: str, secret: str, text: str) -> bool:
+    """Send a single Telegram message via the relay while the farming process is idle."""
+    try:
+        url = f"{relay_url.rstrip('/')}/api/notify"
+        resp = httpx.post(
+            url,
+            headers={"Authorization": f"Bearer {secret}"},
+            json={"text": text, "parse_mode": "HTML"},
+            timeout=8.0,
+        )
+        return resp.status_code == 200 and resp.json().get("ok", False)
+    except Exception:
+        return False
+
+
 def validate_telegram_token(token: str) -> Optional[dict]:
     """Validate a Telegram Bot API token via getMe and return bot metadata."""
     token = token.strip()
