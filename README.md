@@ -27,6 +27,7 @@ Bot visual para automatizar los anuncios de la TV Voladora (Dr. Abawuwu) en **Sh
 
 ### Paso 2 — Instalar dependencias (solo una vez)
 1. Entra a la carpeta descomprimida y haz doble clic en **`Instalar.bat`**.
+   > 💡 Si Windows muestra una advertencia de *"Editor desconocido"*, es normal porque el archivo viene de GitHub. Solo haz clic en **Ejecutar**.
 2. Espera a que termine de instalar los paquetes y el motor de Playwright (tarda ~1 minuto).
 3. Cuando aparezca **`Instalacion completada!`**, presiona cualquier tecla para cerrar.
 
