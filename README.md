@@ -2,9 +2,9 @@
 
 Bot visual para automatizar los anuncios de la TV Voladora (Dr. Abawuwu) en **Shakes & Fidget**, controlable desde Telegram con **[@shakes_fortune_bot](https://t.me/shakes_fortune_bot)**.
 
-- Funciona en **cualquier resolución de pantalla** (720p, 1080p, 1440p, 4K, notebooks con zoom).
+- Funciona en **cualquier resolución de pantalla** (720p, 1080p, 1440p, 4K, laptops con zoom).
 - Soporta **múltiples personajes y servidores** para elegir antes de cada sesión.
-- Detecta automáticamente si el juego te desloguea y vuelve a entrar solo.
+- Detecta automáticamente si el juego cierra tu sesión y vuelve a entrar solo.
 - Cierra el anuncio **únicamente** después de confirmar `Reward granted` para nunca perder monedas de la suerte.
 
 ---
@@ -14,60 +14,60 @@ Bot visual para automatizar los anuncios de la TV Voladora (Dr. Abawuwu) en **Sh
 1. **Windows 10 / 11**
 2. **Google Chrome** instalado — [Descargar Chrome](https://www.google.com/chrome/)
 3. **Python 3.11 o superior** — [Descargar Python](https://www.python.org/downloads/)
-   > ⚠️ **MUY IMPORTANTE al instalar Python:** en la primera pantalla del instalador, marcá la casilla **"Add python.exe to PATH"** antes de tocar *Install Now*.
-4. **Telegram** (en tu celular o PC)
+   > ⚠️ **MUY IMPORTANTE al instalar Python:** en la primera pantalla del instalador, marca la casilla **"Add python.exe to PATH"** antes de hacer clic en *Install Now*.
+4. **Telegram** (en tu celular o computadora)
 
 ---
 
 ## Instalación paso a paso
 
 ### Paso 1 — Descargar el bot
-1. En esta página de GitHub, tocá el botón verde **`<> Code`** → **`Download ZIP`**.
-2. Descomprimí el archivo `.zip` en una carpeta de tu PC (por ejemplo en el Escritorio).
+1. En esta página de GitHub, haz clic en el botón verde **`<> Code`** → **`Download ZIP`**.
+2. Descomprime el archivo `.zip` en una carpeta de tu computadora (por ejemplo en el Escritorio).
 
 ### Paso 2 — Instalar dependencias (solo una vez)
-1. Entrá a la carpeta descomprimida y dale doble clic a **`Instalar.bat`**.
-2. Esperá a que termine de instalar los paquetes y el motor de Playwright (tarda ~1 minuto).
-3. Cuando diga **`Instalacion completada!`**, presioná cualquier tecla para cerrar.
+1. Entra a la carpeta descomprimida y haz doble clic en **`Instalar.bat`**.
+2. Espera a que termine de instalar los paquetes y el motor de Playwright (tarda ~1 minuto).
+3. Cuando aparezca **`Instalacion completada!`**, presiona cualquier tecla para cerrar.
 
 ### Paso 3 — Abrir Shakes & Fortune
-1. Dale doble clic a **`ShakesFortune.bat`**.
+1. Haz doble clic en **`ShakesFortune.bat`**.
 2. Se abrirá el menú principal de **Shakes & Fortune**.
 
 ### Paso 4 — Vincular tu cuenta con Telegram (`@shakes_fortune_bot`)
-*(Solo se hace una vez — no necesitás crear ningún bot ni editar archivos)*
+*(Solo se hace una vez — no necesitas crear ningún bot ni editar archivos)*
 
-1. En la ventana de **Shakes & Fortune**, tocá el botón **`🍀 Vincular Telegram`**.
-2. Va a aparecer un **código de 6 dígitos** (ejemplo: `482 913`).
-3. Elegí cualquiera de estas dos formas:
-   - **Forma rápida (1 clic):** tocá el botón verde **`🍀 Abrir @shakes_fortune_bot en Telegram`** y presioná **Iniciar / Start** en Telegram.
-   - **Forma manual (desde el celular):** abrí Telegram, buscá **`@shakes_fortune_bot`** (el del trébol verde 🍀) y mandale:
+1. En la ventana de **Shakes & Fortune**, haz clic en el botón **`🍀 Vincular Telegram`**.
+2. Aparecerá un **código de 6 dígitos** (ejemplo: `482 913`).
+3. Elige cualquiera de estas dos opciones:
+   - **Opción rápida (1 clic):** haz clic en el botón verde **`🍀 Abrir @shakes_fortune_bot en Telegram`** y presiona **Iniciar / Start** en Telegram.
+   - **Opción manual (desde el celular):** abre Telegram, busca **`@shakes_fortune_bot`** (el del trébol verde 🍀) y envíale:
      ```
      /vincular 482913
      ```
      *(reemplazando `482913` por el código que te muestra la app).*
-4. En 2 segundos la app confirma **`✅ ¡PC vinculada con éxito!`** y se cierra sola.
+4. En un par de segundos la app confirmará **`✅ ¡PC vinculada con éxito!`** y la ventana se cerrará sola.
 
 ### Paso 5 — Abrir el juego e iniciar sesión
-1. En la ventana de **Shakes & Fortune**, tocá **`🌐 Abrir Chrome (S&F)`**.
+1. En la ventana de **Shakes & Fortune**, haz clic en **`🌐 Abrir Chrome (S&F)`**.
 2. Se abrirá Chrome en `https://sfgame.net`.
-3. Iniciá sesión con tu cuenta de Shakes & Fidget hasta ver la pantalla de **Selección de personaje**.
-   > 💡 Esa ventana usa un perfil propio (`chrome-profile`), así que tu sesión queda recordada y no vas a tener que volver a loguearte cada día. Si ya la dejás abierta, el bot siempre trabaja sobre esa misma pestaña sin abrir otra.
+3. Inicia sesión con tu cuenta de Shakes & Fidget hasta ver la pantalla de **Selección de personaje**.
+   > 💡 Esa ventana usa un perfil propio (`chrome-profile`), así que tu sesión queda guardada y no tendrás que volver a iniciar sesión cada día. Si ya la tienes abierta, el bot trabajará sobre esa misma pestaña sin abrir otra.
 
 ### Paso 6 — Agregar y calibrar tu personaje (1 clic)
-*(Podés repetir esto para guardar todos los personajes y servidores que quieras)*
+*(Puedes repetir esto para guardar todos los personajes y servidores que quieras)*
 
-1. En **Selección de personaje** dentro de la app (panel izquierdo), tocá **`+ Nuevo`**.
-2. Escribí el **Nombre** de tu personaje y tu **Servidor** (ejemplo: `EU30`, `EU16`, `US1`, `INT1`).
-3. Tocá **`🎯 Guardar y calibrar ahora`**.
-4. Chrome pasará al frente con un cartel dorado arriba: **hacé 1 clic sobre la tarjeta de tu personaje** en la pantalla de selección.
+1. En **Selección de personaje** dentro de la app (panel izquierdo), haz clic en **`+ Nuevo`**.
+2. Escribe el **Nombre** de tu personaje y tu **Servidor** (ejemplo: `EU30`, `EU16`, `US1`, `INT1`).
+3. Haz clic en **`🎯 Guardar y calibrar ahora`**.
+4. Chrome pasará al frente con un aviso dorado arriba: **haz 1 clic sobre la tarjeta de tu personaje** en la pantalla de selección.
 5. ¡Listo! La tarjeta queda guardada como **`✓ Calibrado`** y funcionará en cualquier tamaño de ventana.
 
 ### Paso 7 — ¡A farmear!
-1. Seleccioná el personaje que querés usar en la lista de la izquierda (queda marcado con ★ dorado).
-2. Tocá el botón verde **`▶ INICIAR BOT`**.
-   - Por defecto empieza a farmear al instante y te avisa por **`@shakes_fortune_bot`** cada 5 minutos.
-   - Si preferís arrancarlo solo desde tu celular, destildá *"Empezar a farmear al instante"* y mandá `/start` en Telegram cuando quieras.
+1. Selecciona el personaje que quieres usar en la lista de la izquierda (queda marcado con ★ dorado).
+2. Haz clic en el botón verde **`▶ INICIAR BOT`**.
+   - Por defecto empieza a farmear al instante y te envía reportes por **`@shakes_fortune_bot`** cada 5 minutos.
+   - Si prefieres iniciarlo solo desde tu celular, desmarca *"Empezar a farmear al instante"* y envía `/start` en Telegram cuando quieras.
 
 ---
 
@@ -87,10 +87,10 @@ Bot visual para automatizar los anuncios de la TV Voladora (Dr. Abawuwu) en **Sh
 ## Preguntas frecuentes
 
 * **¿Puedo cambiar de personaje o servidor?**
-  Sí. Detené el bot (`■ DETENER BOT`), tocá otro personaje de tu lista (o creá uno nuevo con `+ Nuevo`) y volvé a tocar **`▶ INICIAR BOT`**.
+  Sí. Detén el bot (`■ DETENER BOT`), selecciona otro personaje de tu lista (o crea uno nuevo con `+ Nuevo`) y vuelve a hacer clic en **`▶ INICIAR BOT`**.
 * **¿Qué pasa si muevo o cambio el tamaño de la ventana de Chrome?**
   No pasa nada: el bot calcula el área 16:9 real del juego en cada acción.
-* **¿Mis amigos ven mis datos o mi cuenta?**
+* **¿Otras personas pueden ver mis datos o mi cuenta?**
   No. Cada usuario vincula su propia PC a su propio chat de Telegram mediante un código privado. Tu sesión de Chrome y tu `config.yaml` solo existen en tu computadora.
 * **Dice `Chrome: No abierto` aunque ya tengo mi Chrome normal abierto.**
-  Por seguridad de Chrome, el bot solo puede controlar la ventana abierta con el botón **`🌐 Abrir Chrome (S&F)`** (puerto de depuración local `9222`). Usá ese botón una vez y dejá esa ventana abierta.
+  Por seguridad de Chrome, el bot solo puede controlar la ventana abierta con el botón **`🌐 Abrir Chrome (S&F)`** (puerto de depuración local `9222`). Usa ese botón una vez y deja esa ventana abierta.
